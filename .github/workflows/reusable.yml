@@ -459,6 +459,8 @@ jobs:
         with:
           name: security-dashboard
           path: ./public
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.run_id }}
 
       - name: Create placeholder if no report
         run: |
