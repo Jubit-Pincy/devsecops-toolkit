@@ -530,6 +530,12 @@ jobs:
       - name: Login to ACR
         run: az acr login --name ${{ secrets.ACR_NAME }}
 
+      - name: Checkout toolkit repo
+        uses: actions/checkout@v4
+        with:
+          repository: Jubit-Pincy/devsecops-toolkit
+          path: .
+      
       - name: Build & Push API Image
         env:
           ACR_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
