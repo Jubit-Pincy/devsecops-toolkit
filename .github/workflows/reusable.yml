@@ -341,6 +341,12 @@ jobs:
           echo "Waiting for SonarCloud to process scan results..."
           sleep 90
 
+      - name: Checkout toolkit repo
+        uses: actions/checkout@v4
+        with:
+          repository: Jubit-Pincy/devsecops-toolkit
+          path: toolkit
+
       - name: Run Risk Analyzer
         id: risk
         continue-on-error: true
@@ -362,7 +368,7 @@ jobs:
 
         run: |
           mkdir -p reports
-          python3 risk-engine/risk-analyzer.py | tee /tmp/risk_output.txt || echo "Risk analysis failed"
+          python3 toolkit/risk-engine/risk-analyzer.py | tee /tmp/risk_output.txt || echo "Risk analysis failed"
           
           # Extract risk level (default to HIGH if failed - block deployment)
           LEVEL=$(grep -oP '(?<=Level: )\w+' /tmp/risk_output.txt 2>/dev/null | tail -1 || echo "HIGH")
