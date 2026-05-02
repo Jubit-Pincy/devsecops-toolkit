@@ -589,7 +589,7 @@ jobs:
           ACR_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
           IMAGE: ${{ secrets.ACR_LOGIN_SERVER }}/devsecops-api:${{ github.sha }}
         run: |
-          if az containerapp show --name $API_NAME --resource-group ${{ env.AZURE_RESOURCE_GROUP }} &>/dev/null; then
+          if az containerapp show --name $API_NAME --resource-group ${{ env.AZURE_RESOURCE_GROUP }} 2>/dev/null | grep -q "name"; then
             echo "Updating container app..."
             az containerapp update \
               --name $API_NAME \
