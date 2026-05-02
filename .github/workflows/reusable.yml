@@ -35,7 +35,10 @@ on:
         default: ''
       static_web_app_build_folder:
         type: string
-        default: 'build'    
+        default: 'build'  
+      project_key:
+        type: string
+        default: ''  
     secrets:
       SONAR_TOKEN:
         required: true
@@ -88,6 +91,9 @@ on:
       static_web_app_build_folder:
         description: 'Build output folder'
         default: 'build'
+      project_key:
+        description: 'SonarCloud project key (leave empty to use repo name)'
+        default: ''
 
 env:
   SONAR_URL:            https://sonarcloud.io
@@ -147,8 +153,10 @@ jobs:
       - name: Detect project type
         id: detect
         run: |
+          OVERRIDE="${{ inputs.project_key }}"
           REPO_NAME="${{ github.event.repository.name }}"
-          echo "project_key=${REPO_NAME}" >> "$GITHUB_OUTPUT"
+          PROJECT_KEY="${OVERRIDE:-$REPO_NAME}"
+          echo "project_key=${PROJECT_KEY}" >> "$GITHUB_OUTPUT"
           
           TYPES=()
           HAS_APP=false
