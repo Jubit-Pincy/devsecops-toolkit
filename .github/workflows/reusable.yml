@@ -140,6 +140,9 @@ jobs:
         run: |
           if [ -n "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ]; then
             echo "has_creds=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_creds=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Debug filesystem
         run: |
