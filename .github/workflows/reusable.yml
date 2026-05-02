@@ -138,13 +138,8 @@ jobs:
       - name: Check Azure Credentials
         id: check_azure
         run: |
-          if [ -n "${{ secrets.AZURE_CLIENT_ID }}" ]; then
+          if [ -n "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ]; then
             echo "has_creds=true" >> "$GITHUB_OUTPUT"
-            echo "✅ Azure credentials detected"
-          else
-            echo "has_creds=false" >> "$GITHUB_OUTPUT"
-            echo "⚠️  No Azure credentials found"
-          fi
 
       - name: Debug filesystem
         run: |
@@ -868,6 +863,9 @@ jobs:
           HAS_CREDS:    ${{ needs.detect.outputs.has_azure_creds }}
           REPO_OWNER:   ${{ github.repository_owner }}
           REPO_NAME:    ${{ github.event.repository.name }}
+          STATIC_RESULT: ${{ needs.deploy-static.result }}
+          STATIC_URL:    ${{ inputs.app_url }}
+
         run: |
           if   [ "$API_RESULT" = "success" ]; then API_STATUS="✅ Deployed"
           elif [ "$API_RESULT" = "skipped" ]; then API_STATUS="⏭️ Skipped (no Azure creds)"
@@ -883,6 +881,10 @@ jobs:
           else
             DECISION="✅ **DEPLOYMENT APPROVED** — all systems deployed successfully."
           fi
+
+          if   [ "$STATIC_RESULT" = "success" ]; then STATIC_STATUS="✅ ${STATIC_URL}"
+          elif [ "$STATIC_RESULT" = "skipped" ]; then STATIC_STATUS="⏭️ Skipped"
+          else STATIC_STATUS="❌ Failed"; fi
 
           {
             echo "## 🎯 DevSecOps Pipeline Results"
@@ -905,6 +907,7 @@ jobs:
             echo "|---|---|"
             echo "| DevSecOps API | ${API_STATUS} |"
             echo "| Application | ${APP_STATUS} |"
+            echo "| Static Web App | ${STATIC_STATUS} |"
             echo ""
             echo "### Decision"
             echo "${DECISION}"
