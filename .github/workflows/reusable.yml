@@ -49,6 +49,18 @@ on:
         required: false
   workflow_dispatch:
     inputs:
+      sonar_org:
+        description: 'SonarCloud organization key'
+        required: true
+      azure_resource_group:
+        description: 'Azure resource group'
+        default: ''
+      azure_api_name:
+        description: 'Azure container app name for the API'
+        default: ''
+      azure_webapp_name:
+        description: 'Azure web app name'
+        default: ''
       weight_bugs:
         description: 'Weight for Bugs'
         default: '3'
