@@ -29,7 +29,13 @@ on:
         default: '10'
       risk_threshold_med:
         type: string
-        default: '30'    
+        default: '30'
+      static_web_app_token_secret:
+        type: string
+        default: ''
+      static_web_app_build_folder:
+        type: string
+        default: 'build'    
     secrets:
       SONAR_TOKEN:
         required: true
@@ -76,6 +82,12 @@ on:
       risk_threshold_med:
         description: 'Medium risk ceiling'
         default: '30'
+      static_web_app_token_secret:
+        description: 'Azure Static Web App token secret name'
+        default: ''
+      static_web_app_build_folder:
+        description: 'Build output folder'
+        default: 'build'
 
 env:
   SONAR_URL:            https://sonarcloud.io
@@ -751,6 +763,36 @@ jobs:
           echo "✅ Application deployed: https://$URL"
           echo "url=https://$URL" >> "$GITHUB_OUTPUT"
 
+  deploy-static:
+    name: 🌐 Deploy Static Web App
+    needs: [detect, risk]
+    runs-on: ubuntu-latest
+    if: |
+      needs.risk.result == 'success' &&
+      needs.risk.outputs.risk_level != 'HIGH' &&
+      inputs.static_web_app_token_secret != ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install and Build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets[inputs.static_web_app_token_secret] }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: /
+          output_location: ${{ inputs.static_web_app_build_folder }}
+
   # ═══════════════════════════════════════════════════════════════
   # JOB 8: Deployment Blocked (Shows when app deployment is blocked)
   # ═══════════════════════════════════════════════════════════════
@@ -793,7 +835,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════════
   summary:
     name: 📋 Summary
-    needs: [detect, risk, deploy-api, deploy-app, publish-report, deployment-blocked]
+    needs: [detect, risk, deploy-api, deploy-app, deploy-static, publish-report, deployment-blocked]
     runs-on: ubuntu-latest
     if: always()
 
