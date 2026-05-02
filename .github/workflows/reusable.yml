@@ -3,6 +3,18 @@ name: DevSecOps Pipeline - Risk-Adaptive Deployment
 on:
   workflow_call:
     inputs:
+      sonar_org:
+        type: string
+        required: true
+      azure_resource_group:
+        type: string
+        default: ''
+      azure_api_name:
+        type: string
+        default: ''
+      azure_webapp_name:
+        type: string
+        default: ''
       weight_bugs:
         type: string
         default: '3'
@@ -17,7 +29,7 @@ on:
         default: '10'
       risk_threshold_med:
         type: string
-        default: '30'
+        default: '30'    
     secrets:
       SONAR_TOKEN:
         required: true
@@ -54,16 +66,16 @@ on:
         default: '30'
 
 env:
-  SONAR_URL: https://sonarcloud.io
-  SONAR_ORG: jubit-pincy
-  AZURE_RESOURCE_GROUP: rg-devsecops
-  WEIGHT_BUGS:        ${{ inputs.weight_bugs || github.event.inputs.weight_bugs || '3' }}
-  WEIGHT_VULNS:       ${{ inputs.weight_vulns || github.event.inputs.weight_vulns || '5' }}
-  WEIGHT_HOTSPOTS:    ${{ inputs.weight_hotspots || github.event.inputs.weight_hotspots || '2' }}
-  RISK_THRESHOLD_LOW: ${{ inputs.risk_threshold_low || github.event.inputs.risk_threshold_low || '10' }}
-  RISK_THRESHOLD_MED: ${{ inputs.risk_threshold_med || github.event.inputs.risk_threshold_med || '30' }}
-  AZURE_API_NAME: devsecops-api-85826533
-  AZURE_WEBAPP_NAME: devsecops-webapp
+  SONAR_URL:            https://sonarcloud.io
+  SONAR_ORG:            ${{ inputs.sonar_org }}
+  AZURE_RESOURCE_GROUP: ${{ inputs.azure_resource_group }}
+  AZURE_API_NAME:       ${{ inputs.azure_api_name }}
+  AZURE_WEBAPP_NAME:    ${{ inputs.azure_webapp_name }}
+  WEIGHT_BUGS:          ${{ inputs.weight_bugs || github.event.inputs.weight_bugs || '3' }}
+  WEIGHT_VULNS:         ${{ inputs.weight_vulns || github.event.inputs.weight_vulns || '5' }}
+  WEIGHT_HOTSPOTS:      ${{ inputs.weight_hotspots || github.event.inputs.weight_hotspots || '2' }}
+  RISK_THRESHOLD_LOW:   ${{ inputs.risk_threshold_low || github.event.inputs.risk_threshold_low || '10' }}
+  RISK_THRESHOLD_MED:   ${{ inputs.risk_threshold_med || github.event.inputs.risk_threshold_med || '30' }}
 
 permissions:
   contents: write
