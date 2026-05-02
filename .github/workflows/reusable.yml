@@ -356,6 +356,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout toolkit repo
+        uses: actions/checkout@v4
+        with:
+          repository: Jubit-Pincy/devsecops-toolkit
+          path: toolkit
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -377,12 +383,6 @@ jobs:
           echo "Waiting for SonarCloud to process scan results..."
           sleep 90
 
-      - name: Checkout toolkit repo
-        uses: actions/checkout@v4
-        with:
-          repository: Jubit-Pincy/devsecops-toolkit
-          path: toolkit
-
       - name: Run Risk Analyzer
         id: risk
         continue-on-error: true
@@ -401,12 +401,10 @@ jobs:
           AZURE_AD_DASHBOARD_CLIENT_ID: ${{ secrets.AZURE_DASHBOARD_CLIENT_ID }}
           RISK_THRESHOLD_LOW: ${{ env.RISK_THRESHOLD_LOW }}
           RISK_THRESHOLD_MED: ${{ env.RISK_THRESHOLD_MED }}
-
         run: |
           mkdir -p reports
           python3 toolkit/risk-engine/risk-analyzer.py | tee /tmp/risk_output.txt || echo "Risk analysis failed"
           
-          # Extract risk level (default to HIGH if failed - block deployment)
           LEVEL=$(grep -oP '(?<=Level: )\w+' /tmp/risk_output.txt 2>/dev/null | tail -1 || echo "HIGH")
           SCORE=$(grep -oP '(?<=Score: )\d+' /tmp/risk_output.txt 2>/dev/null | tail -1 || echo "999")
           
@@ -418,18 +416,6 @@ jobs:
           echo "Risk Score: ${SCORE}"
           echo "════════════════════════════════"
 
-      - name: Save history to branch
-        continue-on-error: true
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git fetch origin
-          git checkout --orphan risk-history-tmp
-          cp reports/history.json history.json
-          git add history.json
-          git commit -m "chore: update risk history [skip ci]"
-          git push origin HEAD:risk-history --force
-
       - name: Inject config into report
         env:
           PUBLISHED_API_URL: ${{ secrets.API_ENDPOINT || '' }}
@@ -438,10 +424,17 @@ jobs:
         run: |
           for file in reports/security-report.html; do
             [ -f "$file" ] || continue
-            sed -i "s|${{ secrets.API_ENDPOINT }}|${PUBLISHED_API_URL}|g" "$file"
-            sed -i "s|__AZURE_AD_CLIENT_ID__|${AZURE_AD_CLIENT_ID}|g" "$file"
-            sed -i "s|__AZURE_AD_TENANT_ID__|${AZURE_AD_TENANT_ID}|g" "$file"
+            if [ -n "${PUBLISHED_API_URL}" ]; then
+              sed -i "s|__API_ENDPOINT__|${PUBLISHED_API_URL}|g" "$file"
+            fi
+            if [ -n "${AZURE_AD_CLIENT_ID}" ]; then
+              sed -i "s|__AZURE_AD_CLIENT_ID__|${AZURE_AD_CLIENT_ID}|g" "$file"
+            fi
+            if [ -n "${AZURE_AD_TENANT_ID}" ]; then
+              sed -i "s|__AZURE_AD_TENANT_ID__|${AZURE_AD_TENANT_ID}|g" "$file"
+            fi
           done
+
       - name: Upload Report
         uses: actions/upload-artifact@v4
         with:
@@ -450,39 +443,29 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
-      - name: Save history
+      - name: Save history to branch
         continue-on-error: true
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git fetch origin
-          git checkout --orphan risk-history-tmp 2>/dev/null || git checkout risk-history-tmp
-          git rm -rf . --quiet 2>/dev/null || true
-          cp reports/history.json history.json
-          git add history.json
-          git commit -m "chore: update risk history [skip ci]"
-          git push origin HEAD:risk-history --force
+          if [ ! -f reports/history.json ]; then
+            echo "No history file, skipping"
+            exit 0
+          fi
+          cd ${{ github.workspace }}
+          git -C ${{ github.workspace }} config user.name "github-actions"
+          git -C ${{ github.workspace }} config user.email "github-actions@github.com"
+          git -C ${{ github.workspace }} fetch origin
+          git -C ${{ github.workspace }} checkout --orphan risk-history-tmp 2>/dev/null || true
+          git -C ${{ github.workspace }} rm -rf . --quiet 2>/dev/null || true
+          cp reports/history.json ${{ github.workspace }}/history.json
+          git -C ${{ github.workspace }} add history.json
+          git -C ${{ github.workspace }} commit -m "chore: update risk history [skip ci]"
+          git -C ${{ github.workspace }} push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:risk-history --force
 
       - name: ❌ Fail pipeline if HIGH risk
         if: steps.risk.outputs.risk_level == 'HIGH'
         run: |
           echo "::error::🚨 HIGH RISK DETECTED - Application deployment BLOCKED"
           echo "::error::Risk Score: ${{ steps.risk.outputs.risk_score }}"
-          echo "::error::Review security dashboard for details"
-          echo ""
-          echo "═══════════════════════════════════════════════"
-          echo "  ⛔ BUILD BLOCKED - HIGH SECURITY RISK"
-          echo "═══════════════════════════════════════════════"
-          echo ""
-          echo "Risk Score: ${{ steps.risk.outputs.risk_score }}"
-          echo ""
-          echo "Action required:"
-          echo "  1. Review security report in artifacts"
-          echo "  2. Fix critical vulnerabilities"
-          echo "  3. Re-run pipeline after fixes"
-          echo ""
-          echo "Note: DevSecOps API will still deploy for issue management"
-          echo "═══════════════════════════════════════════════"
           exit 1
 
   # ═══════════════════════════════════════════════════════════════
