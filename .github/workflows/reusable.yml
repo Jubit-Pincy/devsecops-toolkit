@@ -262,7 +262,7 @@ jobs:
 
       - name: Install Node deps
         if: needs.detect.outputs.primary_type == 'node'
-        run: npm ci
+        run: npm install
 
   # ═══════════════════════════════════════════════════════════════
   # JOB 3: SonarCloud
