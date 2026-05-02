@@ -38,7 +38,10 @@ on:
         default: 'build'  
       project_key:
         type: string
-        default: ''  
+        default: '' 
+      app_url:
+        type: string
+        default: '' 
     secrets:
       SONAR_TOKEN:
         required: true
@@ -93,6 +96,9 @@ on:
         default: 'build'
       project_key:
         description: 'SonarCloud project key (leave empty to use repo name)'
+        default: ''
+      app_url:
+        description: 'URL of the running application'
         default: ''
 
 env:
@@ -347,6 +353,7 @@ jobs:
             -Dsonar.projectKey=${{ needs.detect.outputs.project_key }}
             -Dsonar.organization=${{ env.SONAR_ORG }}
             -Dsonar.sources=.
+            -Dsonar.branch.name=main
             -Dsonar.exclusions=**/risk-engine/**,**/reports/**,**/.github/**,**/node_modules/**,**/venv/**,**/toolkit/**
 
   # ═══════════════════════════════════════════════════════════════
@@ -418,6 +425,8 @@ jobs:
           AZURE_AD_DASHBOARD_CLIENT_ID: ${{ secrets.AZURE_DASHBOARD_CLIENT_ID }}
           RISK_THRESHOLD_LOW: ${{ env.RISK_THRESHOLD_LOW }}
           RISK_THRESHOLD_MED: ${{ env.RISK_THRESHOLD_MED }}
+          GITHUB_REPO_URL: https://github.com/${{ github.repository }}
+          RUNNING_APP_URL: ${{ inputs.app_url }}
         run: |
           mkdir -p reports
           python3 toolkit/risk-engine/risk-analyzer.py | tee /tmp/risk_output.txt || echo "Risk analysis failed"
