@@ -521,9 +521,15 @@ jobs:
         run: |
           for file in public/index.html public/security-report.html; do
             [ -f "$file" ] || continue
-            sed -i "s|${{ secrets.API_ENDPOINT }}|${PUBLISHED_API_URL}|g" "$file"
-            sed -i "s|__AZURE_AD_CLIENT_ID__|${AZURE_AD_CLIENT_ID}|g" "$file"
-            sed -i "s|__AZURE_AD_TENANT_ID__|${AZURE_AD_TENANT_ID}|g" "$file"
+            if [ -n "${PUBLISHED_API_URL}" ]; then
+              sed -i "s|__API_ENDPOINT__|${PUBLISHED_API_URL}|g" "$file"
+            fi
+            if [ -n "${AZURE_AD_CLIENT_ID}" ]; then
+              sed -i "s|__AZURE_AD_CLIENT_ID__|${AZURE_AD_CLIENT_ID}|g" "$file"
+            fi
+            if [ -n "${AZURE_AD_TENANT_ID}" ]; then
+              sed -i "s|__AZURE_AD_TENANT_ID__|${AZURE_AD_TENANT_ID}|g" "$file"
+            fi
           done
 
       - uses: actions/upload-pages-artifact@v3
