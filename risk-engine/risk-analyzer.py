@@ -1994,9 +1994,8 @@ function resolveIssue(issueKey, transition, event) {{
       var errorMsg = '✗ Failed to resolve issue\\n\\n';
       errorMsg += 'Error: ' + error.message + '\\n\\n';
       errorMsg += 'Troubleshooting:\\n';
-      errorMsg += '1. API: ' + API_ENDPOINT + '\\n';
-      errorMsg += '2. Check browser console\\n';
-      errorMsg += '3. Verify Azure AD auth\\n\\n';
+      errorMsg += '1. Check browser console\\n';
+      errorMsg += '2. Verify Azure AD auth\\n\\n';
       errorMsg += 'Or resolve manually in SonarCloud.';
       
       alert(errorMsg);
