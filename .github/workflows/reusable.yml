@@ -502,12 +502,48 @@ jobs:
           echo "::error::Risk Score: ${{ steps.risk.outputs.risk_score }}"
           exit 1
 
+  register-redirect-uri:
+      name: 🔑 Register Redirect URI
+      needs: [detect]
+      runs-on: ubuntu-latest
+      if: always()
+      steps:
+        - name: Azure Login (OIDC)
+          uses: azure/login@v1
+          with:
+            client-id: ${{ secrets.AZURE_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          
+        - name: Register GitHub Pages redirect URI
+          env:
+            DASHBOARD_APP_ID: ${{ secrets.AZURE_DASHBOARD_CLIENT_ID }}
+            PAGES_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+          run: |
+            if [ -z "$DASHBOARD_APP_ID" ]; then
+              echo "::error::AZURE_DASHBOARD_CLIENT_ID not set"
+              exit 1
+            fi
+            echo "Registering $PAGES_URL..."
+            CURRENT=$(az ad app show --id "$DASHBOARD_APP_ID" \
+              --query "spa.redirectUris" -o json 2>/dev/null || echo "[]")
+            echo "Current URIs: $CURRENT"
+            if echo "$CURRENT" | grep -qF "$PAGES_URL"; then
+              echo "Already registered."
+            else
+              UPDATED=$(echo "$CURRENT" | jq -r --arg u "$PAGES_URL" '. + [$u] | unique[]')
+              az ad app update --id "$DASHBOARD_APP_ID" --spa-redirect-uris $UPDATED
+              echo "✅ Registered: $PAGES_URL"
+            fi
+            echo "=== Final URIs ==="
+            az ad app show --id "$DASHBOARD_APP_ID" --query "spa.redirectUris" -o json
+
   # ═══════════════════════════════════════════════════════════════
   # JOB 5: Publish Report (Always runs)
   # ═══════════════════════════════════════════════════════════════
   publish-report:
     name: 📄 Publish Report
-    needs: [risk, deploy-api]
+    needs: [risk, deploy-api, register-redirect-uri]
     runs-on: ubuntu-latest
     if: always()
 
