@@ -1818,11 +1818,34 @@ async function getMsalInstance() {{
   }}
 
   if (!msalInstancePromise) {{
+    var _redirectUri = window.location.origin + window.location.pathname;
+    if (!_redirectUri.endsWith('/')) _redirectUri += '/';
+
     var instance = new msal.PublicClientApplication({{
       auth: {{
         clientId: AZURE_AD_CLIENT_ID,
         authority: 'https://login.microsoftonline.com/' + AZURE_AD_TENANT_ID,
-        redirectUri: window.location.origin + window.location.pathname
+        redirectUri: _redirectUri
+      }}
+    }});
+
+async function getMsalInstance() {{
+  if (typeof msal === 'undefined') {{
+    throw new Error('Microsoft authentication library failed to load.');
+  }}
+  if (!isConfigured(AZURE_AD_CLIENT_ID) || !isConfigured(AZURE_AD_TENANT_ID)) {{
+    throw new Error('Azure AD authentication is not configured for this report.');
+  }}
+
+  if (!msalInstancePromise) {{
+    var redirectUri = window.location.origin + window.location.pathname;
+    if (!redirectUri.endsWith('/')) redirectUri += '/';
+
+    var instance = new msal.PublicClientApplication({{
+      auth: {{
+        clientId: AZURE_AD_CLIENT_ID,
+        authority: 'https://login.microsoftonline.com/' + AZURE_AD_TENANT_ID,
+        redirectUri: redirectUri
       }}
     }});
 

@@ -616,6 +616,7 @@ jobs:
             exit 1
           fi
 
+          # Get current URIs
           CURRENT=$(az ad app show --id "$DASHBOARD_APP_ID" \
             --query "spa.redirectUris" -o json 2>/dev/null || echo "[]")
           echo "Current redirect URIs: $CURRENT"
@@ -623,12 +624,15 @@ jobs:
           if echo "$CURRENT" | grep -qF "$PAGES_URL"; then
             echo "Already registered, skipping."
           else
-            UPDATED=$(echo "$CURRENT" | jq -r --arg u "$PAGES_URL" '. + [$u] | unique | join(" ")')
-            echo "Registering URIs: $UPDATED"
+            # Build updated list and pass as space-separated args
+            UPDATED=$(echo "$CURRENT" | jq -r --arg u "$PAGES_URL" '. + [$u] | unique[]')
             az ad app update --id "$DASHBOARD_APP_ID" \
               --spa-redirect-uris $UPDATED
-            echo "✅ Registered $PAGES_URL"
+            echo "✅ Registered: $PAGES_URL"
           fi
+
+          echo "=== Final registered URIs ==="
+          az ad app show --id "$DASHBOARD_APP_ID" --query "spa.redirectUris" -o json
 
       - name: Login to ACR
         run: az acr login --name ${{ secrets.ACR_NAME }}
