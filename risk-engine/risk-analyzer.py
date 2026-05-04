@@ -36,6 +36,7 @@ API_ENDPOINT   = os.getenv("API_ENDPOINT", "")
 AZURE_AD_CLIENT_ID = os.getenv("AZURE_AD_CLIENT_ID", "__AZURE_AD_CLIENT_ID__")
 AZURE_AD_TENANT_ID = os.getenv("AZURE_AD_TENANT_ID", "__AZURE_AD_TENANT_ID__")
 AZURE_AD_DASHBOARD_CLIENT_ID = os.getenv("AZURE_AD_DASHBOARD_CLIENT_ID", AZURE_AD_CLIENT_ID)
+AZURE_AD_API_CLIENT_ID = os.getenv("AZURE_AD_API_CLIENT_ID", "__AZURE_AD_API_CLIENT_ID__")
 
  
 _raw_types = os.getenv("DETECTED_TYPES", '["unknown"]')
@@ -604,7 +605,7 @@ h_levels = json.dumps([e.get("level","") for e in history])
 lang_chart_data = json.dumps(language_data)
 api_endpoint_js = json.dumps(API_ENDPOINT or "__API_ENDPOINT__")
 azure_ad_client_id_js = json.dumps(AZURE_AD_DASHBOARD_CLIENT_ID)
-azure_ad_api_client_id_js = json.dumps(AZURE_AD_CLIENT_ID)
+azure_ad_api_client_id_js = json.dumps(AZURE_AD_API_CLIENT_ID)
 azure_ad_tenant_id_js = json.dumps(AZURE_AD_TENANT_ID)
 
  

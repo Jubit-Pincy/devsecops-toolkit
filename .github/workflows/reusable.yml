@@ -59,6 +59,10 @@ on:
         required: false
       AZURE_DASHBOARD_CLIENT_ID:
         required: false
+      AZURE_AD_API_CLIENT_ID:
+        required: false
+      AZURE_CLIENT_SECRET:
+        required: false
   workflow_dispatch:
     inputs:
       sonar_org:
@@ -421,6 +425,7 @@ jobs:
           AZURE_AD_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || '__AZURE_AD_CLIENT_ID__' }}
           AZURE_AD_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || '__AZURE_AD_TENANT_ID__' }}
           AZURE_AD_DASHBOARD_CLIENT_ID: ${{ secrets.AZURE_DASHBOARD_CLIENT_ID }}
+          AZURE_AD_API_CLIENT_ID: ${{ secrets.AZURE_AD_API_CLIENT_ID }}
           RISK_THRESHOLD_LOW: ${{ env.RISK_THRESHOLD_LOW }}
           RISK_THRESHOLD_MED: ${{ env.RISK_THRESHOLD_MED }}
           GITHUB_REPO_URL: https://github.com/${{ github.repository }}
@@ -445,6 +450,7 @@ jobs:
           PUBLISHED_API_URL: ${{ secrets.API_ENDPOINT || '' }}
           AZURE_AD_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || '' }}
           AZURE_AD_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || '' }}
+          AZURE_AD_API_CLIENT_ID: ${{ secrets.AZURE_AD_API_CLIENT_ID || '' }}
         run: |
           for file in reports/security-report.html; do
             [ -f "$file" ] || continue
@@ -456,6 +462,9 @@ jobs:
             fi
             if [ -n "${AZURE_AD_TENANT_ID}" ]; then
               sed -i "s|__AZURE_AD_TENANT_ID__|${AZURE_AD_TENANT_ID}|g" "$file"
+            fi
+            if [ -n "${AZURE_AD_API_CLIENT_ID}" ]; then
+              sed -i "s|__AZURE_AD_API_CLIENT_ID__|${AZURE_AD_API_CLIENT_ID}|g" "$file"
             fi
           done
 
@@ -525,6 +534,7 @@ jobs:
           PUBLISHED_API_URL: ${{ needs.deploy-api.outputs.api_url || secrets.API_ENDPOINT || '' }}
           AZURE_AD_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || '' }}
           AZURE_AD_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || '' }}
+          AZURE_AD_API_CLIENT_ID: ${{ secrets.AZURE_AD_API_CLIENT_ID || '' }}
         run: |
           for file in public/index.html public/security-report.html; do
             [ -f "$file" ] || continue
@@ -536,6 +546,9 @@ jobs:
             fi
             if [ -n "${AZURE_AD_TENANT_ID}" ]; then
               sed -i "s|__AZURE_AD_TENANT_ID__|${AZURE_AD_TENANT_ID}|g" "$file"
+            fi
+            if [ -n "${AZURE_AD_API_CLIENT_ID}" ]; then
+              sed -i "s|__AZURE_AD_API_CLIENT_ID__|${AZURE_AD_API_CLIENT_ID}|g" "$file"
             fi
           done
 
@@ -584,6 +597,23 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Register GitHub Pages redirect URI in Azure AD
+        env:
+          DASHBOARD_APP_ID: ${{ secrets.AZURE_DASHBOARD_CLIENT_ID }}
+          PAGES_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+        run: |
+          echo "Registering $PAGES_URL as redirect URI..."
+          CURRENT=$(az ad app show --id "$DASHBOARD_APP_ID" \
+            --query "spa.redirectUris" -o json 2>/dev/null || echo "[]")
+          if echo "$CURRENT" | grep -qF "$PAGES_URL"; then
+            echo "Already registered, skipping."
+          else
+            UPDATED=$(echo "$CURRENT" | jq --arg u "$PAGES_URL" '. + [$u] | unique')
+            az ad app update --id "$DASHBOARD_APP_ID" \
+              --set "spa.redirectUris=$UPDATED"
+            echo "✅ Registered $PAGES_URL"
+          fi
+
       - name: Login to ACR
         run: az acr login --name ${{ secrets.ACR_NAME }}
 
@@ -626,7 +656,8 @@ jobs:
                 PROJECT_KEY=${{ needs.detect.outputs.project_key }} \
                 AZURE_AD_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }} \
                 AZURE_AD_TENANT_ID=${{ secrets.AZURE_TENANT_ID }} \
-                AZURE_AD_DASHBOARD_CLIENT_ID=${{ secrets.AZURE_DASHBOARD_CLIENT_ID }}
+                AZURE_AD_DASHBOARD_CLIENT_ID=${{ secrets.AZURE_DASHBOARD_CLIENT_ID }} \
+                AZURE_AD_API_CLIENT_ID=${{ secrets.AZURE_AD_API_CLIENT_ID }}
           else
             echo "Creating container app..."
             az containerapp create \
@@ -646,6 +677,7 @@ jobs:
                 AZURE_AD_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }} \
                 AZURE_AD_TENANT_ID=${{ secrets.AZURE_TENANT_ID }} \
                 AZURE_AD_DASHBOARD_CLIENT_ID=${{ secrets.AZURE_DASHBOARD_CLIENT_ID }} \
+                AZURE_AD_API_CLIENT_ID=${{ secrets.AZURE_AD_API_CLIENT_ID }}
               --cpu 0.5 --memory 1.0Gi \
               --min-replicas 1 --max-replicas 3
           fi
