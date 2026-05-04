@@ -634,6 +634,29 @@ jobs:
           echo "=== Final registered URIs ==="
           az ad app show --id "$DASHBOARD_APP_ID" --query "spa.redirectUris" -o json
 
+      - name: Verify redirect URI registration
+        env:
+          DASHBOARD_APP_ID: ${{ secrets.AZURE_DASHBOARD_CLIENT_ID }}
+          PAGES_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+        run: |
+          echo "=== App ID being used ==="
+          echo "$DASHBOARD_APP_ID"
+          
+          echo "=== URL we want registered ==="
+          echo "$PAGES_URL"
+          
+          echo "=== Currently registered SPA redirect URIs ==="
+          az ad app show --id "$DASHBOARD_APP_ID" \
+            --query "spa.redirectUris" -o json
+          
+          echo "=== Currently registered Web redirect URIs ==="
+          az ad app show --id "$DASHBOARD_APP_ID" \
+            --query "web.redirectUris" -o json
+
+          echo "=== Full app auth config ==="
+          az ad app show --id "$DASHBOARD_APP_ID" \
+            --query "{spa:spa, web:web}" -o json
+        
       - name: Login to ACR
         run: az acr login --name ${{ secrets.ACR_NAME }}
 
