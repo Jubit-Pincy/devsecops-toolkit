@@ -551,7 +551,13 @@ jobs:
               sed -i "s|__AZURE_AD_API_CLIENT_ID__|${AZURE_AD_API_CLIENT_ID}|g" "$file"
             fi
           done
-
+          
+      - name: Debug injected values
+        run: |
+          echo "=== Checking for unreplaced placeholders ==="
+          grep -o '__[A-Z_]*__' public/index.html || echo "No placeholders found"
+          echo "=== AZURE_AD_API_CLIENT_ID value ==="
+          grep -o 'AZURE_AD_API_CLIENT_ID[^;]*' public/index.html | head -3
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./public
