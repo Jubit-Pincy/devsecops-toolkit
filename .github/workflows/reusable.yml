@@ -609,15 +609,24 @@ jobs:
           DASHBOARD_APP_ID: ${{ secrets.AZURE_DASHBOARD_CLIENT_ID }}
           PAGES_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
         run: |
-          echo "Registering $PAGES_URL as redirect URI..."
+          echo "Registering $PAGES_URL for app $DASHBOARD_APP_ID..."
+
+          if [ -z "$DASHBOARD_APP_ID" ]; then
+            echo "::error::AZURE_DASHBOARD_CLIENT_ID secret is not set"
+            exit 1
+          fi
+
           CURRENT=$(az ad app show --id "$DASHBOARD_APP_ID" \
             --query "spa.redirectUris" -o json 2>/dev/null || echo "[]")
+          echo "Current redirect URIs: $CURRENT"
+
           if echo "$CURRENT" | grep -qF "$PAGES_URL"; then
             echo "Already registered, skipping."
           else
-            UPDATED=$(echo "$CURRENT" | jq --arg u "$PAGES_URL" '. + [$u] | unique')
+            UPDATED=$(echo "$CURRENT" | jq -r --arg u "$PAGES_URL" '. + [$u] | unique | join(" ")')
+            echo "Registering URIs: $UPDATED"
             az ad app update --id "$DASHBOARD_APP_ID" \
-              --set "spa.redirectUris=$UPDATED"
+              --spa-redirect-uris $UPDATED
             echo "✅ Registered $PAGES_URL"
           fi
 
