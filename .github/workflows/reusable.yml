@@ -59,10 +59,6 @@ on:
         required: false
       AZURE_DASHBOARD_CLIENT_ID:
         required: false
-      AZURE_AD_API_CLIENT_ID:
-        required: false
-      AZURE_CLIENT_SECRET:
-        required: false
   workflow_dispatch:
     inputs:
       sonar_org:
@@ -116,7 +112,6 @@ env:
   WEIGHT_HOTSPOTS:      ${{ inputs.weight_hotspots || github.event.inputs.weight_hotspots || '2' }}
   RISK_THRESHOLD_LOW:   ${{ inputs.risk_threshold_low || github.event.inputs.risk_threshold_low || '10' }}
   RISK_THRESHOLD_MED:   ${{ inputs.risk_threshold_med || github.event.inputs.risk_threshold_med || '30' }}
-  AZURE_AD_API_CLIENT_ID: 8de1cee4-21d3-4d01-a29e-f57b1a760987
 
 permissions:
   contents: write
@@ -426,7 +421,6 @@ jobs:
           AZURE_AD_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || '__AZURE_AD_CLIENT_ID__' }}
           AZURE_AD_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || '__AZURE_AD_TENANT_ID__' }}
           AZURE_AD_DASHBOARD_CLIENT_ID: ${{ secrets.AZURE_DASHBOARD_CLIENT_ID }}
-          AZURE_AD_API_CLIENT_ID: ${{ env.AZURE_AD_API_CLIENT_ID }}
           RISK_THRESHOLD_LOW: ${{ env.RISK_THRESHOLD_LOW }}
           RISK_THRESHOLD_MED: ${{ env.RISK_THRESHOLD_MED }}
           GITHUB_REPO_URL: https://github.com/${{ github.repository }}
@@ -451,7 +445,6 @@ jobs:
           PUBLISHED_API_URL: ${{ secrets.API_ENDPOINT || '' }}
           AZURE_AD_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || '' }}
           AZURE_AD_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || '' }}
-          AZURE_AD_API_CLIENT_ID: ${{ env.AZURE_AD_API_CLIENT_ID }}
         run: |
           for file in reports/security-report.html; do
             [ -f "$file" ] || continue
@@ -463,9 +456,6 @@ jobs:
             fi
             if [ -n "${AZURE_AD_TENANT_ID}" ]; then
               sed -i "s|__AZURE_AD_TENANT_ID__|${AZURE_AD_TENANT_ID}|g" "$file"
-            fi
-            if [ -n "${AZURE_AD_API_CLIENT_ID}" ]; then
-              sed -i "s|__AZURE_AD_API_CLIENT_ID__|${AZURE_AD_API_CLIENT_ID}|g" "$file"
             fi
           done
 
@@ -502,49 +492,12 @@ jobs:
           echo "::error::Risk Score: ${{ steps.risk.outputs.risk_score }}"
           exit 1
 
-  register-redirect-uri:
-      name: 🔑 Register Redirect URI
-      needs: [detect]
-      runs-on: ubuntu-latest
-      if: always()
-      steps:
-        - name: Azure Login (OIDC)
-          uses: azure/login@v1
-          with:
-            client-id: ${{ secrets.AZURE_CLIENT_ID }}
-            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-            allow-no-subscriptions: true
-          
-        - name: Register GitHub Pages redirect URI
-          env:
-            DASHBOARD_APP_ID: ${{ secrets.AZURE_DASHBOARD_CLIENT_ID }}
-            PAGES_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
-          run: |
-            if [ -z "$DASHBOARD_APP_ID" ]; then
-              echo "::error::AZURE_DASHBOARD_CLIENT_ID not set"
-              exit 1
-            fi
-            echo "Registering $PAGES_URL..."
-            CURRENT=$(az ad app show --id "$DASHBOARD_APP_ID" \
-              --query "spa.redirectUris" -o json 2>/dev/null || echo "[]")
-            echo "Current URIs: $CURRENT"
-            if echo "$CURRENT" | grep -qF "$PAGES_URL"; then
-              echo "Already registered."
-            else
-              UPDATED=$(echo "$CURRENT" | jq -r --arg u "$PAGES_URL" '. + [$u] | unique[]')
-              az ad app update --id "$DASHBOARD_APP_ID" --spa-redirect-uris $UPDATED
-              echo "✅ Registered: $PAGES_URL"
-            fi
-            echo "=== Final URIs ==="
-            az ad app show --id "$DASHBOARD_APP_ID" --query "spa.redirectUris" -o json
-
   # ═══════════════════════════════════════════════════════════════
   # JOB 5: Publish Report (Always runs)
   # ═══════════════════════════════════════════════════════════════
   publish-report:
     name: 📄 Publish Report
-    needs: [risk, deploy-api, register-redirect-uri]
+    needs: [risk, deploy-api]
     runs-on: ubuntu-latest
     if: always()
 
@@ -572,7 +525,6 @@ jobs:
           PUBLISHED_API_URL: ${{ needs.deploy-api.outputs.api_url || secrets.API_ENDPOINT || '' }}
           AZURE_AD_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || '' }}
           AZURE_AD_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || '' }}
-          AZURE_AD_API_CLIENT_ID: ${{ env.AZURE_AD_API_CLIENT_ID }}
         run: |
           for file in public/index.html public/security-report.html; do
             [ -f "$file" ] || continue
@@ -585,17 +537,8 @@ jobs:
             if [ -n "${AZURE_AD_TENANT_ID}" ]; then
               sed -i "s|__AZURE_AD_TENANT_ID__|${AZURE_AD_TENANT_ID}|g" "$file"
             fi
-            if [ -n "${AZURE_AD_API_CLIENT_ID}" ]; then
-              sed -i "s|__AZURE_AD_API_CLIENT_ID__|${AZURE_AD_API_CLIENT_ID}|g" "$file"
-            fi
           done
 
-      - name: Debug injected values
-        run: |
-          echo "=== Checking for unreplaced placeholders ==="
-          grep -o '__[A-Z_]*__' public/index.html || echo "No placeholders found"
-          echo "=== AZURE_AD_API_CLIENT_ID value ==="
-          grep -o 'AZURE_AD_API_CLIENT_ID[^;]*' public/index.html | head -3
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./public
@@ -641,59 +584,6 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Register GitHub Pages redirect URI in Azure AD
-        env:
-          DASHBOARD_APP_ID: ${{ secrets.AZURE_DASHBOARD_CLIENT_ID }}
-          PAGES_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
-        run: |
-          echo "Registering $PAGES_URL for app $DASHBOARD_APP_ID..."
-
-          if [ -z "$DASHBOARD_APP_ID" ]; then
-            echo "::error::AZURE_DASHBOARD_CLIENT_ID secret is not set"
-            exit 1
-          fi
-
-          # Get current URIs
-          CURRENT=$(az ad app show --id "$DASHBOARD_APP_ID" \
-            --query "spa.redirectUris" -o json 2>/dev/null || echo "[]")
-          echo "Current redirect URIs: $CURRENT"
-
-          if echo "$CURRENT" | grep -qF "$PAGES_URL"; then
-            echo "Already registered, skipping."
-          else
-            # Build updated list and pass as space-separated args
-            UPDATED=$(echo "$CURRENT" | jq -r --arg u "$PAGES_URL" '. + [$u] | unique[]')
-            az ad app update --id "$DASHBOARD_APP_ID" \
-              --spa-redirect-uris $UPDATED
-            echo "✅ Registered: $PAGES_URL"
-          fi
-
-          echo "=== Final registered URIs ==="
-          az ad app show --id "$DASHBOARD_APP_ID" --query "spa.redirectUris" -o json
-
-      - name: Verify redirect URI registration
-        env:
-          DASHBOARD_APP_ID: ${{ secrets.AZURE_DASHBOARD_CLIENT_ID }}
-          PAGES_URL: "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
-        run: |
-          echo "=== App ID being used ==="
-          echo "$DASHBOARD_APP_ID"
-          
-          echo "=== URL we want registered ==="
-          echo "$PAGES_URL"
-          
-          echo "=== Currently registered SPA redirect URIs ==="
-          az ad app show --id "$DASHBOARD_APP_ID" \
-            --query "spa.redirectUris" -o json
-          
-          echo "=== Currently registered Web redirect URIs ==="
-          az ad app show --id "$DASHBOARD_APP_ID" \
-            --query "web.redirectUris" -o json
-
-          echo "=== Full app auth config ==="
-          az ad app show --id "$DASHBOARD_APP_ID" \
-            --query "{spa:spa, web:web}" -o json
-        
       - name: Login to ACR
         run: az acr login --name ${{ secrets.ACR_NAME }}
 
@@ -736,8 +626,7 @@ jobs:
                 PROJECT_KEY=${{ needs.detect.outputs.project_key }} \
                 AZURE_AD_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }} \
                 AZURE_AD_TENANT_ID=${{ secrets.AZURE_TENANT_ID }} \
-                AZURE_AD_DASHBOARD_CLIENT_ID=${{ secrets.AZURE_DASHBOARD_CLIENT_ID }} \
-                AZURE_AD_API_CLIENT_ID=${{ env.AZURE_AD_API_CLIENT_ID }}
+                AZURE_AD_DASHBOARD_CLIENT_ID=${{ secrets.AZURE_DASHBOARD_CLIENT_ID }}
           else
             echo "Creating container app..."
             az containerapp create \
@@ -757,7 +646,6 @@ jobs:
                 AZURE_AD_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }} \
                 AZURE_AD_TENANT_ID=${{ secrets.AZURE_TENANT_ID }} \
                 AZURE_AD_DASHBOARD_CLIENT_ID=${{ secrets.AZURE_DASHBOARD_CLIENT_ID }} \
-                AZURE_AD_API_CLIENT_ID=${{ env.AZURE_AD_API_CLIENT_ID }}
               --cpu 0.5 --memory 1.0Gi \
               --min-replicas 1 --max-replicas 3
           fi

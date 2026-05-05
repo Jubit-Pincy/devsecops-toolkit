@@ -36,7 +36,6 @@ API_ENDPOINT   = os.getenv("API_ENDPOINT", "")
 AZURE_AD_CLIENT_ID = os.getenv("AZURE_AD_CLIENT_ID", "__AZURE_AD_CLIENT_ID__")
 AZURE_AD_TENANT_ID = os.getenv("AZURE_AD_TENANT_ID", "__AZURE_AD_TENANT_ID__")
 AZURE_AD_DASHBOARD_CLIENT_ID = os.getenv("AZURE_AD_DASHBOARD_CLIENT_ID", AZURE_AD_CLIENT_ID)
-AZURE_AD_API_CLIENT_ID = os.getenv("AZURE_AD_API_CLIENT_ID", "__AZURE_AD_API_CLIENT_ID__")
 
  
 _raw_types = os.getenv("DETECTED_TYPES", '["unknown"]')
@@ -605,7 +604,7 @@ h_levels = json.dumps([e.get("level","") for e in history])
 lang_chart_data = json.dumps(language_data)
 api_endpoint_js = json.dumps(API_ENDPOINT or "__API_ENDPOINT__")
 azure_ad_client_id_js = json.dumps(AZURE_AD_DASHBOARD_CLIENT_ID)
-azure_ad_api_client_id_js = json.dumps(AZURE_AD_API_CLIENT_ID)
+azure_ad_api_client_id_js = json.dumps(AZURE_AD_CLIENT_ID)
 azure_ad_tenant_id_js = json.dumps(AZURE_AD_TENANT_ID)
 
  
@@ -1802,7 +1801,6 @@ var TRANSITION_LABELS = {{
 }};
 
 function isConfigured(value) {{
-  // \\d is correct for a standard Python f-string
   return !!value &&
          value.indexOf('__') !== 0 &&
          !/^https?:\/\/localhost(?::\\d+)?\/?$/i.test(value);
@@ -1814,21 +1812,16 @@ async function getMsalInstance() {{
   if (typeof msal === 'undefined') {{
     throw new Error('Microsoft authentication library failed to load.');
   }}
-  
-  // Note: These need single braces for Python to fill them
-  if (!isConfigured('{AZURE_AD_CLIENT_ID}') || !isConfigured('{AZURE_AD_TENANT_ID}')) {{
-    throw new Error('Azure AD authentication is not configured.');
+  if (!isConfigured(AZURE_AD_CLIENT_ID) || !isConfigured(AZURE_AD_TENANT_ID)) {{
+    throw new Error('Azure AD authentication is not configured for this report.');
   }}
 
   if (!msalInstancePromise) {{
-    var redirectUri = window.location.origin + window.location.pathname;
-    if (!redirectUri.endsWith('/')) redirectUri += '/';
-
     var instance = new msal.PublicClientApplication({{
       auth: {{
-        clientId: '{AZURE_AD_CLIENT_ID}',
-        authority: 'https://login.microsoftonline.com/{AZURE_AD_TENANT_ID}',
-        redirectUri: redirectUri
+        clientId: AZURE_AD_CLIENT_ID,
+        authority: 'https://login.microsoftonline.com/' + AZURE_AD_TENANT_ID,
+        redirectUri: window.location.origin + window.location.pathname
       }}
     }});
 
@@ -1842,19 +1835,24 @@ async function getMsalInstance() {{
 
 async function getAccessToken() {{
   var tokenRequest = {{
-    // Use single braces for the Python variable
-    scopes: ['api://{AZURE_AD_API_CLIENT_ID}/.default']
+    scopes: ['api://' + AZURE_AD_API_CLIENT_ID + '/.default']
   }};
   var instance = await getMsalInstance();
   var accounts = typeof instance.getAllAccounts === 'function' ? instance.getAllAccounts() : [];
 
   if (!accounts.length) {{
     var loginResponse = await instance.loginPopup(tokenRequest);
-    accounts = (loginResponse && loginResponse.account) ? [loginResponse.account] : instance.getAllAccounts();
+    if (loginResponse && loginResponse.account) {{
+      accounts = [loginResponse.account];
+    }} else {{
+      accounts = instance.getAllAccounts();
+    }}
   }}
 
   var account = accounts[0];
-  if (!account) throw new Error('No signed-in account available.');
+  if (!account) {{
+    throw new Error('No signed-in Azure AD account is available.');
+  }}
 
   try {{
     var silentResponse = await instance.acquireTokenSilent({{
